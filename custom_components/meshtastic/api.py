@@ -287,6 +287,10 @@ class MeshtasticApiClient:
         )
 
         event_data["message_id"] = packet.mesh_packet.id
+        event_data[ATTR_EVENT_MESHTASTIC_API_NODE_INFO] = {
+            "name": node.long_name,
+            "short_name": node.short_name,
+        }
         self._hass.bus.async_fire(EVENT_MESHTASTIC_API_TEXT_MESSAGE, event_data)
 
     async def _on_telemetry(self, node: MeshNode, telemetry: dict[str, Any]) -> None:
