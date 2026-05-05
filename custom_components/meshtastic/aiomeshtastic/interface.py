@@ -1060,7 +1060,7 @@ class MeshInterface:
         want_ack: bool = False,
         channel_index: int | None = None,
         priority: MeshPacket.Priority | None = None,
-    ) -> None:
+    ) -> None | Packet:
         if isinstance(destination, MeshNode):
             to_node = destination.id
             channel_index = None

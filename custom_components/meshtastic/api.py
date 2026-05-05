@@ -62,6 +62,7 @@ EVENT_MESHTASTIC_API_TELEMETRY = EVENT_MESHTASTIC_API_BASE + "_telemetry"
 EVENT_MESHTASTIC_API_PACKET = EVENT_MESHTASTIC_API_BASE + "_packet"
 EVENT_MESHTASTIC_API_TEXT_MESSAGE = EVENT_MESHTASTIC_API_BASE + "_text_message"
 EVENT_MESHTASTIC_API_POSITION = EVENT_MESHTASTIC_API_BASE + "_position"
+EVENT_MESHTASTIC_API_MESSAGE_DELIVERY = EVENT_MESHTASTIC_API_BASE + "_message_delivery"
 
 ATTR_EVENT_MESHTASTIC_API_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_EVENT_MESHTASTIC_API_NODE = "node"
@@ -221,9 +222,26 @@ class MeshtasticApiClient:
         *,
         want_ack: bool = False,
         channel_index: int | None = None,
-    ) -> bool:
+    ) -> dict[str, Any]:
+        """Send a text message and return delivery result.
+
+        Returns dict with:
+            success: bool - True if sent (and ACKed, if want_ack)
+            status: str - "acked", "sent", "timeout", or "error"
+            error_reason: str | None - routing error name if NAK received
+        """
+        from .aiomeshtastic.protobuf import mesh_pb2
+
+        result = {
+            "success": False,
+            "status": "error",
+            "error_reason": None,
+            "destination": destination_id,
+            "text": text,
+            "want_ack": want_ack,
+        }
         try:
-            await asyncio.wait_for(
+            ack_packet = await asyncio.wait_for(
                 self._interface.send_text_message(
                     text,
                     destination=destination_id,
@@ -232,12 +250,41 @@ class MeshtasticApiClient:
                 ),
                 timeout=30,
             )
+            if want_ack:
+                if ack_packet is not None:
+                    # Check for routing errors in the ACK
+                    error_reason = ack_packet.app_payload.error_reason
+                    if error_reason == mesh_pb2.Routing.Error.NONE:
+                        result["success"] = True
+                        result["status"] = "acked"
+                    else:
+                        result["status"] = "nak"
+                        result["error_reason"] = mesh_pb2.Routing.Error.Name(error_reason)
+                else:
+                    result["status"] = "timeout"
+            else:
+                # Fire-and-forget (no ACK requested)
+                result["success"] = True
+                result["status"] = "sent"
         except TimeoutError:
-            return False
+            result["status"] = "timeout"
+        except MeshRoutingError as e:
+            result["status"] = "nak"
+            result["error_reason"] = str(e)
         except Exception as e:
+            result["error_reason"] = str(e)
             raise MeshtasticApiClientError from e
-        else:
-            return True
+
+        # Fire delivery event on the HA bus
+        self._hass.bus.async_fire(
+            EVENT_MESHTASTIC_API_MESSAGE_DELIVERY,
+            {
+                ATTR_EVENT_MESHTASTIC_API_CONFIG_ENTRY_ID: self._config_entry_id,
+                **result,
+            },
+        )
+
+        return result
 
     @property
     def metadata(self) -> Mapping[str, Any]:

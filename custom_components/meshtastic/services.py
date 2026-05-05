@@ -102,8 +102,8 @@ _service_handlers: dict[str, dict[str, Callable[[ServiceCall], Awaitable[Service
 
 SUPPORTED_SERVICES = {
     SERVICE_SEND_TEXT: SupportsResponse.OPTIONAL,
-    SERVICE_SEND_DIRECT_MESSAGE: SupportsResponse.NONE,
-    SERVICE_BROADCAST_CHANNEL_MESSAGE: SupportsResponse.NONE,
+    SERVICE_SEND_DIRECT_MESSAGE: SupportsResponse.OPTIONAL,
+    SERVICE_BROADCAST_CHANNEL_MESSAGE: SupportsResponse.OPTIONAL,
     SERVICE_REQUEST_TELEMETRY: SupportsResponse.OPTIONAL,
     SERVICE_REQUEST_POSITION: SupportsResponse.OPTIONAL,
     SERVICE_REQUEST_TRACEROUTE: SupportsResponse.OPTIONAL,
@@ -283,7 +283,7 @@ async def _setup_service_send_direct_message_handler(
                 return _SERVICE_CANT_HANDLE_RESPONSE
 
         text = call.data[ATTR_SERVICE_SEND_DIRECT_MESSAGE_DATA_MESSAGE]
-        await client.send_text(text=text, destination_id=to_node_id, want_ack=call.data[ATTR_SERVICE_DATA_ACK])
+        result = await client.send_text(text=text, destination_id=to_node_id, want_ack=call.data[ATTR_SERVICE_DATA_ACK])
         return None
 
     _service_handlers[entry.entry_id][SERVICE_SEND_DIRECT_MESSAGE] = handle_service_call
@@ -314,7 +314,7 @@ async def _setup_service_broadcast_channel_message_handler(
         text = call.data[ATTR_SERVICE_BROADCAST_CHANNEL_MESSAGE_DATA_MESSAGE]
         channel_index = channel_entity.extra_state_attributes[STATE_ATTRIBUTE_CHANNEL_INDEX]
 
-        await client.send_text(text=text, channel_index=channel_index, want_ack=call.data[ATTR_SERVICE_DATA_ACK])
+        result = await client.send_text(text=text, channel_index=channel_index, want_ack=call.data[ATTR_SERVICE_DATA_ACK])
         return None
 
     _service_handlers[entry.entry_id][SERVICE_BROADCAST_CHANNEL_MESSAGE] = handle_service_call
@@ -351,12 +351,13 @@ async def _setup_service_request_traceroute_handler(
 async def _setup_service_send_text_handler(
     hass: HomeAssistant, entry: MeshtasticConfigEntry, client: MeshtasticApiClient
 ) -> None:
-    async def handler(call: ServiceCall, to: int, channel_index: int | None) -> None:
-        await client.send_text(
+    async def handler(call: ServiceCall, to: int, channel_index: int | None) -> ServiceResponse:
+        result = await client.send_text(
             text=call.data[ATTR_SERVICE_SEND_TEXT_DATA_TEXT],
             destination_id=to,
             channel_index=channel_index,
             want_ack=call.data[ATTR_SERVICE_DATA_ACK],
         )
+        return {"delivery": result}
 
     _service_handlers[entry.entry_id][SERVICE_SEND_TEXT] = await _build_default_handler(hass, client, handler)

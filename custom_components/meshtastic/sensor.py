@@ -330,7 +330,12 @@ def _build_local_stats_sensors(
 ) -> Iterable[MeshtasticSensor]:
     coordinator = runtime_data.coordinator
     gateway = runtime_data.client.get_own_node()
-    nodes_with_local_stats = {node_id: node_info for node_id, node_info in nodes.items() if "localStats" in node_info}
+    # Always create local_stats sensors for the gateway node, even if localStats
+    # data hasn't arrived yet. The value_fn handles missing data gracefully by
+    # returning None (renders as "unknown" in HA). Data populates when the radio
+    # sends its next local_stats telemetry packet (~every 15 minutes).
+    gateway_node_id = gateway.get("num")
+    gateway_nodes = {gateway_node_id: nodes.get(gateway_node_id, {})} if gateway_node_id else {}
 
     entities = []
     try:
@@ -349,7 +354,7 @@ def _build_local_stats_sensors(
                 gateway=gateway,
                 node_id=node_id,
             )
-            for node_id, node_info in nodes_with_local_stats.items()
+            for node_id, node_info in gateway_nodes.items()
         ]
 
         entities += [
@@ -367,7 +372,7 @@ def _build_local_stats_sensors(
                 gateway=gateway,
                 node_id=node_id,
             )
-            for node_id, node_info in nodes_with_local_stats.items()
+            for node_id, node_info in gateway_nodes.items()
         ]
 
         entities += [
@@ -385,7 +390,7 @@ def _build_local_stats_sensors(
                 gateway=gateway,
                 node_id=node_id,
             )
-            for node_id, node_info in nodes_with_local_stats.items()
+            for node_id, node_info in gateway_nodes.items()
         ]
 
         entities += [
@@ -403,7 +408,7 @@ def _build_local_stats_sensors(
                 gateway=gateway,
                 node_id=node_id,
             )
-            for node_id, node_info in nodes_with_local_stats.items()
+            for node_id, node_info in gateway_nodes.items()
         ]
 
         entities += [
@@ -421,7 +426,7 @@ def _build_local_stats_sensors(
                 gateway=gateway,
                 node_id=node_id,
             )
-            for node_id, node_info in nodes_with_local_stats.items()
+            for node_id, node_info in gateway_nodes.items()
         ]
 
         entities += [
@@ -439,7 +444,7 @@ def _build_local_stats_sensors(
                 gateway=gateway,
                 node_id=node_id,
             )
-            for node_id, node_info in nodes_with_local_stats.items()
+            for node_id, node_info in gateway_nodes.items()
         ]
 
         entities += [
@@ -457,7 +462,7 @@ def _build_local_stats_sensors(
                 gateway=gateway,
                 node_id=node_id,
             )
-            for node_id, node_info in nodes_with_local_stats.items()
+            for node_id, node_info in gateway_nodes.items()
         ]
 
         entities += [
@@ -475,7 +480,7 @@ def _build_local_stats_sensors(
                 gateway=gateway,
                 node_id=node_id,
             )
-            for node_id, node_info in nodes_with_local_stats.items()
+            for node_id, node_info in gateway_nodes.items()
         ]
     except:  # noqa: E722
         LOGGER.warning("Failed to create local stats entities", exc_info=True)
